@@ -4,6 +4,7 @@ import com.library.library_management.dto.book.BookResponseDTO;
 import com.library.library_management.service.BookService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -25,5 +26,11 @@ public class BookController {
     public ResponseEntity<List<BookResponseDTO>> getBooks() {
         List<BookResponseDTO> books = bookService.getAllBooks();
         return ResponseEntity.ok(books);
+    }
+
+    @GetMapping("/api/v1/books/{id}")
+    public ResponseEntity<BookResponseDTO> getBookById(@PathVariable Long id) {
+        BookResponseDTO book = bookService.getBookById(id);
+        return ResponseEntity.ok(book);
     }
 }

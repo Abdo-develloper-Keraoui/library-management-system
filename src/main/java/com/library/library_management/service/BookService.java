@@ -1,11 +1,11 @@
 package com.library.library_management.service;
 
 import com.library.library_management.dto.book.BookResponseDTO;
-import com.library.library_management.model.Book;
 import com.library.library_management.repository.BookRepository;
 
 import org.springframework.stereotype.Service;
 import java.util.List;
+
 
 @Service
 public class BookService {
@@ -34,7 +34,16 @@ public class BookService {
     }
 
     public BookResponseDTO getBookById(Long id) {
-
+        return bookRepository.findById(id)
+                .map((book -> new BookResponseDTO( // transforms each Book
+                        book.getId(),
+                        book.getTitle(),
+                        book.getAuthor(),
+                        book.getIsbn(),
+                        book.getPubYear(),
+                        book.getCopiesAvailable(),
+                        book.getCoverImageUrl(),
+                        book.getCreatedAt()
+                ))).orElseThrow(() -> new RuntimeException("Book not found with id: " + id));
     }
-
 }
