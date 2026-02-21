@@ -1,494 +1,302 @@
-# 🔄 Library Management System — Session Recap & Continuation Prompt
-
-> Paste this entire document at the start of a new conversation with Claude to continue where we left off.
-
----
-
-## 🎯 Project Overview
-
-Building a **Library Management System** as a 3-week portfolio project for fullstack (backend-focused) internship applications. Claude is acting as a **strict senior software engineer mentor** — not building the project, but guiding step by step.
-
-**Level:** Basic Java/OOP, basic SQL, zero frontend experience, no Spring Boot/Docker/deployment experience. ~70 total hours over 20 days.
+> Every major decision made during this project — **what** was decided and **why**.  
+> Useful for interview prep, future reference, and proving you actually thought about your choices.
 
 ---
 
-## ✅ Locked MVP Scope
+## 📦 Scope Decisions
 
-- **Backend:** Java 21, Spring Boot 4.0.x, PostgreSQL 17, JWT authentication, role-based authorization (USER, ADMIN)
-- **Entities:** User, Book (author is a String field), Borrow
-- **Book has `coverImageUrl`** — nullable String, no file upload
-- **Borrow statuses:** ACTIVE, RETURNED only
-- **Features:** Register, Login, Browse books (public), Borrow/Return (authenticated), Admin Book CRUD, Borrow history
-- **Business rules:** Can't borrow already-borrowed book, max 3 active borrows per user
-- **Concurrency:** Pessimistic locking (SELECT ... FOR UPDATE)
-- **Frontend:** React + Vite, minimal UI, JWT stored client-side
-- **Deployment:** Docker Compose, deployed to Render/Railway
-- **Extras:** Swagger, GitHub Actions CI/CD, README, decisions.md
+### 1. 👤 Author is a String field on Book — not a separate entity
+
+**Decision:** Author is stored as a plain `String` on the `Book` entity. No `Author` table, no `Author` CRUD, no relationships.
+
+**Why:** A dedicated `Author` entity would cost 4–6 hours and demonstrate zero new architectural concepts beyond what Book CRUD already covers. In a 70-hour project, that time is better spent on authentication, borrowing logic, and deployment.
 
 ---
 
-## 🗺️ 3-Week Roadmap
+### 2. 📅 Borrow statuses: ACTIVE and RETURNED only — no OVERDUE
 
-### WEEK 1 — Backend Foundation (Days 1–7) ✅ COMPLETE
-| Day | Focus | Status |
-|-----|-------|--------|
-| 1–2 | Project setup, PostgreSQL in Docker, connect Spring Boot, first GET endpoint | ✅ |
-| 3–4 | Book entity + full CRUD, layered architecture, validation, global error handler | ✅ |
-| 5–6 | User entity, registration, BCrypt password hashing | ✅ |
-| 7 | JWT authentication — filter, login endpoint, SecurityConfig | ✅ |
+**Decision:** `BorrowStatus` enum has two values: `ACTIVE` and `RETURNED`.
 
-### WEEK 2 — Core Logic + Frontend Start (Days 8–14)
-| Day | Focus | Status |
-|-----|-------|--------|
-| 8–9 | Role-based authorization (ADMIN vs USER) | ✅ COMPLETE |
-| 10–11 | Borrow entity, borrow/return endpoints, business rules, pessimistic locking | ← **START HERE** |
-| 12 | Borrow history, Swagger. Backend feature-complete. | 📅 |
-| 13–14 | React + Vite setup, login page | 📅 |
-
-### WEEK 3 — Frontend + Polish + Deploy (Days 15–20)
-| Day | Focus |
-|-----|-------|
-| 15–16 | Book browsing, borrow/return buttons, protected routes |
-| 17 | Admin page |
-| 18 | Docker Compose + GitHub Actions |
-| 19 | Deploy to Render/Railway |
-| 20 | README, cleanup, practice explaining |
+**Why:** `OVERDUE` requires either a scheduled background job or on-read calculation logic — both add complexity disproportionate to the portfolio value gained. Two statuses are enough to demonstrate state management in a borrowing flow. Can be added later as an enhancement.
 
 ---
 
-## 🏗️ What's Already Done
+### 3. 🔒 Concurrency handled with pessimistic locking only
 
-- [x] Docker Desktop installed (WSL2)
-- [x] PostgreSQL 17 running in Docker (`library-db`, port **5555**)
-- [x] Spring Boot project on port **8081**
-- [x] Database connection confirmed
-- [x] `Book` entity, `BookRepository`, `BookResponseDTO`, `BookService`, `BookController` — all 5 endpoints complete
-- [x] `BookCreateDTO` and `BookUpdateDTO` with validation
-- [x] `ResourceNotFoundException`, `BusinessException`, `ErrorResponse`, `GlobalExceptionHandler`
-- [x] All 6 Postman tests passed for Book endpoints
-- [x] DBeaver connected to PostgreSQL
-- [x] Git repo created and pushed to GitHub (public)
-- [x] README.md written
-- [x] decisions.md up to date
-- [x] `Role.java` enum (USER, ADMIN)
-- [x] `User.java` entity
-- [x] `UserRepository` with `findByEmail()` and `existsByEmail()`
-- [x] `RegisterDTO`, `LoginDTO`, `AuthResponseDTO`
-- [x] `AuthService` with `register()` and `login()` methods
-- [x] `AuthController` with `POST /api/v1/auth/register` and `POST /api/v1/auth/login`
-- [x] All Postman tests passed for auth endpoints
-- [x] JWT dependency added to `pom.xml` (jjwt 0.12.6 — api, impl, jackson)
-- [x] `jwt.secret` and `jwt.expiration` in `application.properties` as `${JWT_SECRET}` and `${JWT_EXPIRATION:86400000}`
-- [x] `JWT_SECRET` set as environment variable in IntelliJ run configuration (NOT hardcoded)
-- [x] `JwtUtils.java` — generates, validates, extracts email from token ✅
-- [x] `CustomUserDetailsService.java` — loads user by email, wraps in Spring Security `User` object ✅
-- [x] `JwtAuthenticationFilter.java` — complete with blank token check + UsernameNotFoundException catch ✅
-- [x] `SecurityConfig.java` — stateless sessions, JWT filter registered, public vs protected endpoints defined, authenticationEntryPoint configured, /error permitted ✅
-- [x] Full JWT flow tested in Postman — register → login → token returned ✅
-- [x] `@EnableMethodSecurity` added to `SecurityConfig` ✅
-- [x] `@PreAuthorize("hasRole('ADMIN')")` added to `createBook`, `updateBook`, `deleteBook` in `BookController` ✅
-- [x] Role-based authorization fully tested in Postman — 401 (no token), 403 (USER token), 201 (ADMIN token) ✅
-- [x] Two test users in DB: `user@test.com` (USER) and `admin@test.com` (ADMIN)
+**Decision:** Borrow operations use `SELECT ... FOR UPDATE` (pessimistic locking).
+
+**Why:** Prevents two users from borrowing the last copy simultaneously. Pessimistic locking is the simplest correct solution for this problem. Optimistic locking with version columns is an alternative, but pessimistic is easier to implement and explain in interviews.
 
 ---
 
-## 📁 Project Folder Structure
+### 4. 🖼️ Book cover image stored as a nullable URL string — no file upload
 
-```
-C:/Projects/library-system/
-├── library-management/
-│   └── src/main/java/com/library/library_management/
-│       ├── LibraryManagementApplication.java
-│       ├── config/
-│       │   └── SecurityConfig.java
-│       ├── controller/
-│       │   ├── BookController.java
-│       │   └── AuthController.java
-│       ├── dto/
-│       │   ├── auth/
-│       │   │   ├── RegisterDTO.java
-│       │   │   ├── LoginDTO.java
-│       │   │   └── AuthResponseDTO.java
-│       │   ├── book/
-│       │   │   ├── BookCreateDTO.java
-│       │   │   ├── BookUpdateDTO.java
-│       │   │   └── BookResponseDTO.java
-│       │   └── ErrorResponse.java
-│       ├── exception/
-│       │   ├── ResourceNotFoundException.java
-│       │   ├── BusinessException.java
-│       │   └── GlobalExceptionHandler.java
-│       ├── model/
-│       │   ├── Book.java
-│       │   ├── User.java
-│       │   └── Role.java
-│       ├── repository/
-│       │   ├── BookRepository.java
-│       │   └── UserRepository.java
-│       ├── security/
-│       │   ├── JwtUtils.java
-│       │   ├── CustomUserDetailsService.java
-│       │   └── JwtAuthenticationFilter.java
-│       └── service/
-│           ├── BookService.java
-│           └── AuthService.java
-├── library-frontend/
-├── decisions.md
-├── docker-compose.yml
-└── README.md
-```
+**Decision:** `Book` has a nullable `coverImageUrl` String field. No multipart upload, no file storage.
+
+**Why:** A cover image makes the demo look significantly better. Storing it as a URL costs 5 minutes. Actual file upload (multipart requests, S3/disk storage, serving files) would cost 4–6 hours and introduces infrastructure complexity irrelevant to a Library Management System's core purpose. Nullable because not every book entry needs an image.
 
 ---
 
-## 📄 Current File Contents
+### 5. 🔢 `copiesAvailable` as an int — no separate boolean availability flag
 
-### `SecurityConfig.java`
-```java
-package com.library.library_management.config;
+**Decision:** Availability is derived directly from `copiesAvailable > 0`. No `isAvailable` boolean.
 
-import com.library.library_management.security.JwtAuthenticationFilter;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+**Why:** Two fields representing the same thing will eventually get out of sync and cause bugs. A boolean is redundant — you can derive it from the int. Redundant state is always a liability.
 
-@Configuration
-@EnableMethodSecurity
-public class SecurityConfig {
+---
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+## 🛠️ Technology Decisions
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-    }
+### 6. ⚛️ React + Vite for frontend — not Next.js
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) ->
-                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
-                )
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/books/**").permitAll()
-                        .requestMatchers("/error").permitAll()
-                        .anyRequest().authenticated()
-                )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+**Decision:** Frontend is built with plain React + Vite.
 
-        return http.build();
-    }
+**Why:** Zero JavaScript experience going in. Next.js adds SSR, file-based routing, and its own abstractions — three layers of new concepts at once. React + Vite means only learning components, state, and API calls. The frontend is ~20% of this project; the backend is where the interview value lives.
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-}
+---
+
+### 7. 🔐 Spring Security + JWT — not BetterAuth
+
+**Decision:** Authentication uses Spring Security with JWT tokens.
+
+**Why:** BetterAuth is a JavaScript/TypeScript library — it doesn't work with Java/Spring Boot. In the Java ecosystem, Spring Security + JWT is the industry standard. This is what recruiters and interviewers expect to see on a Java backend project.
+
+---
+
+### 8. 🐳 Only PostgreSQL runs in Docker during development
+
+**Decision:** PostgreSQL runs in Docker. Spring Boot runs from IntelliJ. React runs via `npm run dev`.
+
+**Why:** Fast feedback loops during development. Hot reload for both backend and frontend. Only the database is infrastructure — it belongs in a container. Everything gets containerized at deployment (Day 18). This mirrors how real development teams work.
+
+---
+
+### 9. 📦 Full Docker Compose setup is a deployment-phase task — Day 18
+
+**Decision:** Dockerfiles and `docker-compose.yml` are written once the application is feature-complete.
+
+**Why:** Writing Docker configs during active development adds unnecessary build cycles. It's a deployment concern, not a dev concern. Doing it at the end proves we understand containerization without slowing down daily progress.
+
+---
+
+### 10. ⚙️ CI/CD with GitHub Actions — minimal pipeline
+
+**Decision:** A basic GitHub Actions pipeline runs build + tests on every push to `main`.
+
+**Why:** Takes ~1–2 hours, sends a strong signal to recruiters that we understand modern development workflows. Kept simple — no multi-stage deployments or complex configurations.
+
+---
+
+### 11. 🔌 PostgreSQL on port 5555
+
+**Decision:** PostgreSQL container mapped to host port 5555 instead of default 5432.
+
+**Why:** Windows/Hyper-V reserves ports 5431–5530 (includes 5432 and 5433). Port 5555 is outside all excluded ranges.
+
+---
+
+### 12. 🌐 Spring Boot on port 8081
+
+**Decision:** Spring Boot runs on port 8081 instead of default 8080.
+
+**Why:** Port 8080 was already occupied on the development machine. Port 8081 is used during development only.
+
+---
+
+## 🏗️ Architecture Decisions
+
+### 13. 🧱 Layered architecture: Controller → Service → Repository
+
+**Decision:** Standard three-layer Spring Boot architecture.
+
+**Why:** Controllers handle HTTP (request/response mapping). Services handle business logic. Repositories handle data access. Clean separation of concerns makes the code testable, maintainable, and easy to explain. This is what interviewers expect from a Java backend project.
+
+---
+
+### 14. 🎯 Backend-focused project with minimal frontend
+
+**Decision:** Deep backend, shallow frontend.
+
+**Why:** Targeting backend/fullstack internships with a backend emphasis. The frontend needs to prove API integration, client-side auth, and basic UI — it does NOT need to be beautiful. Time is better invested in solid backend logic, error handling, and deployment.
+
+---
+
+### 15. 💥 Service methods throw exceptions on "not found" — never return Optional
+
+**Decision:** Services throw `ResourceNotFoundException` instead of returning `Optional`.
+
+**Why:** In a REST API, "not found" is an error — the correct response is 404, not 200 with an empty body. Returning `Optional` from a service pushes the decision up to the controller, so every controller must handle it separately. Throwing an exception lets `GlobalExceptionHandler` catch it once, in one place, and return a consistent 404 everywhere.
+
+---
+
+### 16. 🚨 Custom exception classes — not generic RuntimeException
+
+**Decision:** `ResourceNotFoundException`, `BusinessException` instead of raw `RuntimeException`.
+
+**Why:** A generic `RuntimeException` gives Spring no information about what went wrong — it defaults to 500 regardless. Custom exceptions carry meaning and let `GlobalExceptionHandler` map each one to the correct HTTP status (404, 400). One place to change, consistent behaviour everywhere.
+
+---
+
+### 17. ✅ `existsById()` used in deleteBook — not `findById()`
+
+**Decision:** `existsById()` to check existence before delete, not `findById()`.
+
+**Why:** The only purpose of the lookup is confirming the book exists. Fetching the full entity just to get its id back is wasteful — we already have the id. `existsById()` hits the database once, returns a boolean, avoids an unused variable.
+
+---
+
+### 18. 📍 `@RequestMapping` at the class level in controllers
+
+**Decision:** Base path defined once at the class level, not repeated on every method.
+
+**Why:** Repeating `/api/v1/books` on every method is unnecessary duplication. If the path changes, you'd have to update every method. Class-level `@RequestMapping` means one change propagates everywhere.
+
+---
+
+### 19. 🔁 `mapToDTO()` private helper method in BookService
+
+**Decision:** Single private `mapToDTO()` method instead of repeating the DTO constructor.
+
+**Why:** Without it, the same `new BookResponseDTO(...)` call is repeated four times. If a field is ever added to `BookResponseDTO`, you'd have to find and update four places. Extracting it once is the DRY principle — Don't Repeat Yourself.
+
+---
+
+### 20. 🔑 Password hashing in the service layer — not controller or entity
+
+**Decision:** BCrypt hashing happens in `AuthService`, not `AuthController` or `User`.
+
+**Why:** The service layer is where business logic lives. If hashing were done in the controller, every controller that creates a user would have to remember to hash — that's duplication and a security risk. In the service, it happens once, every time, in one place.
+
+---
+
+### 21. 🛡️ Validation errors handled in GlobalExceptionHandler — not per-controller
+
+**Decision:** `MethodArgumentNotValidException` is caught once in `GlobalExceptionHandler`.
+
+**Why:** Without a central handler, Spring returns its own inconsistent error format. Catching it once means every endpoint returns the same `ErrorResponse` shape on validation failure. One place to change, consistent behaviour everywhere.
+
+---
+
+### 22. 🔒 Role-based authorization: SecurityConfig for broad rules + @PreAuthorize for fine-grained rules
+
+**Decision:** Authorization uses both `SecurityConfig` and `@PreAuthorize` together — not one or the other.
+
+`SecurityConfig` handles broad, structural rules:
+- Auth endpoints are public
+- GET book endpoints are public
+- Everything else requires authentication
+
+`@PreAuthorize("hasRole('ADMIN')")` handles fine-grained rules on controller methods:
+- `POST /api/v1/books` — ADMIN only
+- `PUT /api/v1/books/{id}` — ADMIN only
+- `DELETE /api/v1/books/{id}` — ADMIN only
+
+**Why:** Putting all rules in `SecurityConfig` centralizes them but creates a hidden coupling problem — a developer reading `BookController.java` has no idea who can call each method without opening a separate file. As the project grows, `SecurityConfig` becomes a long list of URL patterns that's increasingly fragile (Spring evaluates matchers in order; getting the order wrong silently breaks rules).
+
+`@PreAuthorize` on the controller puts the authorization rule at the point of definition — right next to the method it protects. This is immediately readable and scales cleanly as new controllers and endpoints are added.
+
+The two layers serve different purposes and work best together. This is the industry-standard approach in Spring Boot projects.
+
+---
+
+## 🔐 Concepts — Security & JWT
+
+### What is a JWT?
+
+When a user logs in, the server needs a way to "remember" them on future requests. But this is a stateless REST API — no sessions. So instead, the server hands the client a **signed piece of paper** that says "this is who you are."
+
+That piece of paper is a **JWT — JSON Web Token**.
+
+```
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyQGdtYWlsLmNvbSJ9.abc123xyz
+        HEADER                        PAYLOAD                  SIGNATURE
 ```
 
-### `BookController.java`
-```java
-package com.library.library_management.controller;
+| Part | Contents |
+|------|----------|
+| **Header** | Algorithm used to sign (e.g. HS256) |
+| **Payload** | Data — email, role, expiry. Base64 encoded, NOT encrypted — anyone can read it |
+| **Signature** | Cryptographic hash of header + payload, signed with the server's secret key |
 
-import com.library.library_management.dto.book.BookCreateDTO;
-import com.library.library_management.dto.book.BookResponseDTO;
-import com.library.library_management.dto.book.BookUpdateDTO;
-import com.library.library_management.service.BookService;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+> ⚠️ **The signature is the key insight.** If someone tampers with the payload, the signature breaks. The server detects it instantly.
 
-import java.util.List;
+---
 
-@RestController
-@RequestMapping("/api/v1/books")
-public class BookController {
+### The Full JWT Flow
 
-    private final BookService bookService;
-
-    public BookController(BookService bookService) {
-        this.bookService = bookService;
-    }
-
-    @GetMapping
-    public ResponseEntity<List<BookResponseDTO>> getBooks() {
-        return ResponseEntity.ok(bookService.getAllBooks());
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<BookResponseDTO> getBookById(@PathVariable Long id) {
-        return ResponseEntity.ok(bookService.getBookById(id));
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
-    public ResponseEntity<BookResponseDTO> createBook(@RequestBody @Valid BookCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(bookService.createBook(dto));
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping("/{id}")
-    public ResponseEntity<BookResponseDTO> updateBook(@PathVariable Long id, @RequestBody @Valid BookUpdateDTO dto) {
-        return ResponseEntity.ok(bookService.updateBook(id, dto));
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBook(@PathVariable Long id) {
-        bookService.deleteBook(id);
-        return ResponseEntity.noContent().build();
-    }
-}
 ```
-
-### `JwtUtils.java`
-```java
-package com.library.library_management.security;
-
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
-import javax.crypto.SecretKey;
-import java.util.Date;
-
-@Component
-public class JwtUtils {
-
-    @Value("${jwt.secret}")
-    private String secretKey;
-
-    @Value("${jwt.expiration}")
-    private long expiration;
-
-    private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(secretKey.getBytes());
-    }
-
-    public String generateToken(String email) {
-        return Jwts.builder()
-                .subject(email)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey())
-                .compact();
-    }
-
-    public String extractEmail(String token) {
-        return Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
-    }
-
-    public boolean validateToken(String token) {
-        try {
-            Jwts.parser()
-                    .verifyWith(getSigningKey())
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-}
-```
-
-### `CustomUserDetailsService.java`
-```java
-package com.library.library_management.security;
-
-import com.library.library_management.repository.UserRepository;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
-
-@Service
-public class CustomUserDetailsService implements UserDetailsService {
-
-    private final UserRepository userRepository;
-
-    public CustomUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
-
-    @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
-                .map(user -> org.springframework.security.core.userdetails.User
-                        .withUsername(user.getEmail())
-                        .password(user.getPassword())
-                        .roles(user.getRole().name())
-                        .build())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
-    }
-}
-```
-
-### `JwtAuthenticationFilter.java`
-```java
-package com.library.library_management.security;
-
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
-
-@Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
-    private final CustomUserDetailsService customUserDetailsService;
-    private final JwtUtils jwtUtils;
-
-    public JwtAuthenticationFilter(CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils) {
-        this.customUserDetailsService = customUserDetailsService;
-        this.jwtUtils = jwtUtils;
-    }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-
-        String authHeader = request.getHeader("Authorization");
-
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        String token = authHeader.substring(7);
-
-        if (token.isBlank()) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        if (jwtUtils.validateToken(token)) {
-            String email = jwtUtils.extractEmail(token);
-            try {
-                UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            } catch (UsernameNotFoundException e) {
-                // Token valid but user deleted — skip auth, SecurityConfig returns 401
-            }
-        }
-
-        filterChain.doFilter(request, response);
-    }
-}
-```
-
-### `application.properties` (relevant lines)
-```properties
-jwt.secret=${JWT_SECRET}
-jwt.expiration=${JWT_EXPIRATION:86400000}
+1. POST /api/v1/auth/login  {email, password}
+         ↓
+2. AuthService verifies password with BCrypt
+         ↓
+3. JwtUtils generates a signed token
+         ↓
+4. Server returns: { "token": "eyJhbG..." }
+         ↓
+5. Client stores the token
+         ↓
+6. Every subsequent request:
+   Authorization: Bearer eyJhbG...
+         ↓
+7. JwtAuthenticationFilter reads + validates the token,
+   extracts email, loads user, sets SecurityContextHolder
+         ↓
+8. SecurityConfig allows or denies based on role
 ```
 
 ---
 
-## ▶️ WHERE WE LEFT OFF — Next Task
+### The 6 Things Built for JWT on Day 7
 
-**Day 10: Borrow entity, borrow/return endpoints, business rules, pessimistic locking**
-
-Day 8 is fully complete. Role-based authorization works end to end:
-- No token → 401
-- USER token on admin endpoint → 403
-- ADMIN token on admin endpoint → 201
-
-Next up is the core business logic — the borrow system. This involves:
-- `Borrow.java` entity with `@ManyToOne` relationships to User and Book
-- `BorrowStatus.java` enum (ACTIVE, RETURNED)
-- `BorrowRepository` with custom queries
-- `BorrowService` with all business rules
-- `BorrowController` with 4 endpoints
-- Pessimistic locking on the book row during borrow
+| Thing | Purpose |
+|-------|---------|
+| `JwtUtils` | Generate a token, validate a token, extract email from token |
+| `CustomUserDetailsService` | Load user from DB by email — Spring Security contract |
+| `JwtAuthenticationFilter` | Runs on every request — reads, validates, sets auth context |
+| `login()` in AuthService | Verify password, call JwtUtils, return real token |
+| `POST /auth/login` | Wire it up in AuthController |
+| Updated `SecurityConfig` | Register filter, stateless sessions, define public vs protected |
 
 ---
 
-## 🧠 Concepts Learned So Far
+### Secret Key — Environment Variable
 
-| Concept | What it means |
-|---|---|
-| `Optional<T>` | Wrapper for "might not exist" — forces handling both cases |
-| `.orElseThrow()` | Unwraps Optional or throws exception |
-| `@PrePersist` | Runs automatically before Hibernate inserts |
-| `@NotBlank` vs `@NotNull` | `@NotBlank` for Strings, `@NotNull` for objects |
-| Custom exceptions | Maps to correct HTTP status, caught by GlobalExceptionHandler |
-| `@RestControllerAdvice` | Watches all controllers for exceptions, handles centrally |
-| `existsById()` vs `findById()` | Use existsById when you only need to check existence |
-| `@Enumerated(EnumType.STRING)` | Stores enum as string in DB |
-| BCrypt hashing in service layer | Entity stores plain String; service hashes before saving |
-| `MethodArgumentNotValidException` | Thrown by `@Valid` — caught in GlobalExceptionHandler |
-| JWT structure | Header.Payload.Signature — payload is encoded not encrypted |
-| JWT signature | Signed with secret key — tampered payload breaks signature |
-| Secret key in environment variable | Never hardcode — anyone with the key can forge tokens |
-| `@Value("${property}")` | Reads value from application.properties into a Java field |
-| `jjwt-impl` and `jjwt-jackson` are runtime scope | Don't import their classes directly — only `jjwt-api` is compile scope |
-| `getSigningKey()` extracted as helper | DRY — three methods need it, extract once |
-| `.subject(email)` in JWT | Stores email in the payload — retrieved with `.getSubject()` |
-| `validateToken()` uses try/catch | jjwt throws exceptions on invalid tokens, not returns false |
-| `UserDetailsService` interface | Spring Security contract — implement it to tell Spring how to load a user |
-| Spring Security `User` builder | Wraps your entity into a `UserDetails` object Spring understands |
-| `OncePerRequestFilter` | Base class for filters that run exactly once per HTTP request |
-| `@Component` on filter | Registers as a Spring bean — infrastructure, not business logic |
-| Filter vs authorization | Filter = authentication (who are you?), SecurityConfig = authorization (what can you do?) |
-| `SecurityContextHolder` | Spring Security's per-request memory — filter writes to it, SecurityConfig reads from it |
-| `UsernamePasswordAuthenticationToken` | Spring Security's auth object — wraps user + roles, placed in SecurityContext |
-| `SessionCreationPolicy.STATELESS` | No HTTP sessions — JWT IS the session |
-| `addFilterBefore(...)` | Registers our JWT filter to run before Spring's default auth filter |
-| Authentication vs Authorization | Authentication = who are you (filter). Authorization = what can you do (SecurityConfig). |
-| Same error message for wrong email/password | Security — don't reveal which emails are registered |
-| `passwordEncoder.matches(raw, encoded)` | BCrypt comparison — never compare plain strings to hashes |
-| `@EnableMethodSecurity` | Enables `@PreAuthorize` annotations — without it they are silently ignored |
-| `@PreAuthorize("hasRole('ADMIN')")` | Enforces role check at the method level — evaluated before the method runs |
-| SecurityConfig broad rules + @PreAuthorize fine-grained rules | Industry standard — SecurityConfig handles public vs authenticated, @PreAuthorize handles role-specific |
-| 401 vs 403 | 401 = "I don't know who you are" (no/invalid token). 403 = "I know who you are but you're not allowed" (wrong role) |
-| `authenticationEntryPoint` | Tells Spring what to do when an unauthenticated request hits a protected endpoint — returns 401 |
-| `/error` must be permitted | Spring internally forwards to `/error` when returning error responses — if it's protected, 401 bleeds through and overwrites the real status code |
+- Secret key is **NOT hardcoded** in `JwtUtils.java` — anyone with the key can forge tokens
+- Stored in `application.properties` as `${JWT_SECRET}` placeholder
+- Actual value set in IntelliJ run configuration (local) and Docker Compose env block (deployment)
+- The real value **never touches the codebase**
 
 ---
 
-## 🧑‍🏫 Mentor Behaviour Rules
+### Authentication vs Authorization
 
-Claude is acting as a strict senior engineer mentor:
-- Does NOT build the project — guides to do it independently
-- Asks probing questions before revealing answers
-- Challenges weak thinking, forces justification of choices
-- Teaches concepts just-in-time
-- Gives small code snippets with explanations only when needed
-- Keeps on track for 3-week deadline
-- Occasionally asks "why did you choose X over Y?" for interview prep
+| Concept | Question it answers | Where it lives |
+|---------|-------------------|----------------|
+| **Authentication** | Who are you? | `JwtAuthenticationFilter` |
+| **Authorization** | What are you allowed to do? | `SecurityConfig` + `@PreAuthorize` |
+
+> The filter identifies. The config decides. They are separate concerns.
 
 ---
 
-*Session ended: Day 8 complete. Resume from: Day 10 — Borrow entity and business logic.*
+## 🔒 Locked MVP Feature Set
+
+| Feature | Status |
+|---------|--------|
+| Register / Login (JWT) | ✅ Done |
+| Role-based access: USER and ADMIN | ✅ Done |
+| Book CRUD (Admin only) | ✅ Done |
+| Public book browsing | ✅ Done |
+| Borrow a book / Return a book | 📅 Days 10–11 |
+| Borrow status tracking (ACTIVE / RETURNED) | 📅 Days 10–11 |
+| Business rules: max 3 borrows, no duplicates | 📅 Days 10–11 |
+| Global exception handling + validation | ✅ Done |
+| Swagger API documentation | 📅 Day 12 |
+| Docker Compose for deployment | 📅 Day 18 |
+| Deployed to free hosting platform (live URL) | 📅 Day 19 |
+| Basic CI/CD pipeline (GitHub Actions) | 📅 Day 18 |
+| README + this decision log | ✅ In progress |
+
+---
+
+_Last updated: Day 8 ✅_
