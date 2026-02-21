@@ -1,39 +1,56 @@
 package com.library.library_management.config;
 
+import com.library.library_management.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Security configuration for the application.
  *
  * @Configuration — tells Spring "this class contains bean definitions, read it on startup."
  *
- * This class defines HOW requests are secured (or not) and registers
+ * This class defines HOW requests are secured and registers
  * shared security utilities (like the password encoder) into Spring's container.
  *
- * Current state: WIDE OPEN — everything is permitted, no login required.
- * Future state (Day 8): Lock down endpoints by role (e.g., only ADMIN can delete books).
+ * Current state: JWT-based security is ACTIVE.
+ *   - Public endpoints: auth routes + GET books (anyone can browse)
+ *   - Everything else: requires a valid JWT token in the Authorization header
  */
-
 @Configuration
 public class SecurityConfig {
+
+    // Our custom JWT filter — injected here so we can plug it into the filter chain
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /**
+     * Constructor injection — Spring gives us the JwtAuthenticationFilter bean.
+     * No @Autowired needed because there's only one constructor.
+     */
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
 
     /**
      * Defines the security filter chain — every HTTP request passes through
      * this chain BEFORE reaching your controllers.
      * <p>
-     * Current rules:
-     * 1. CSRF is DISABLED — CSRF attacks target browsers using cookies.
-     * Since we'll use JWT tokens (stateless, no cookies), CSRF protection
-     * is irrelevant and would just block our API calls.
-     * <p>
-     * 2. ALL requests are PERMITTED — no authentication required for any endpoint.
-     * This is TEMPORARY for development. You'll replace .permitAll() with
-     * role-based rules later (e.g., .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")).
+     * Rules:
+     * 1. CSRF DISABLED — we use JWT tokens (stateless, no cookies), so CSRF is irrelevant.
+     * 2. STATELESS sessions — no HttpSession created. The JWT in each request IS the session.
+     * 3. Authorization rules:
+     * - /api/v1/auth/** → OPEN (login/register don't need a token, obviously)
+     * - GET /api/v1/books/** → OPEN (anyone can browse books without logging in)
+     * - Everything else → AUTHENTICATED (must send a valid JWT in the Authorization header)
+     * 4. JWT filter runs BEFORE Spring's default UsernamePasswordAuthenticationFilter,
+     * so by the time Spring checks "is this request authenticated?", our filter
+     * has already parsed the token and set the user in SecurityContext.
      *
      * @param http Spring's HttpSecurity builder — fluent API to configure security rules
      * @return the built SecurityFilterChain that Spring applies to every request
@@ -43,25 +60,31 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+
+                // No sessions — JWT handles identity on every request
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()
-                );
+                        // Public — no token needed
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/books/**").permitAll()
+                        // Everything else requires a valid token
+                        .anyRequest().authenticated()
+                )
+
+                // Run our JWT filter before Spring's default authentication filter
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
     /**
-     * Registers BCryptPasswordEncoder as the app's password encoder.
-     * <p>
-     * WHY a @Bean? → So any class (e.g., UserService) can simply inject
-     * PasswordEncoder via constructor and use it — no need to create new instances.
+     * BCrypt password encoder — hashes passwords with random salt.
+     * Registered as a @Bean so any class can inject it via constructor.
      * <p>
      * WHY BCrypt? → It's slow ON PURPOSE (makes brute-force attacks impractical),
-     * adds a random salt per password (two identical passwords → different hashes),
-     * and is the industry standard for password hashing.
-     * <p>
-     * Usage:
-     * - Encoding:  passwordEncoder.encode("rawPassword")  → "$2a$10$xYz..."
-     * - Matching:  passwordEncoder.matches("rawPassword", hashedPassword) → true/false
+     * adds a random salt per password, and is the industry standard.
      *
      * @return a BCryptPasswordEncoder instance managed by Spring's container
      */
