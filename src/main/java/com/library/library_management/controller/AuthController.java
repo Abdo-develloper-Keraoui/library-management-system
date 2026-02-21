@@ -1,6 +1,7 @@
 package com.library.library_management.controller;
 
 import com.library.library_management.dto.auth.AuthResponseDTO;
+import com.library.library_management.dto.auth.LoginDTO;
 import com.library.library_management.dto.auth.RegisterDTO;
 import com.library.library_management.service.AuthService;
 import jakarta.validation.Valid;
@@ -24,5 +25,11 @@ public class AuthController {
     public ResponseEntity<AuthResponseDTO> register(@RequestBody @Valid RegisterDTO dto) {
         AuthResponseDTO user = authService.register(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponseDTO> login(@RequestBody @Valid LoginDTO dto) {
+        AuthResponseDTO user = authService.login(dto);
+        return ResponseEntity.ok(user);
     }
 }

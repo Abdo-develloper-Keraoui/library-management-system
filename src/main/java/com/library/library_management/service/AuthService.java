@@ -2,11 +2,13 @@ package com.library.library_management.service;
 
 
 import com.library.library_management.dto.auth.AuthResponseDTO;
+import com.library.library_management.dto.auth.LoginDTO;
 import com.library.library_management.dto.auth.RegisterDTO;
 import com.library.library_management.exception.BusinessException;
 import com.library.library_management.model.Role;
 import com.library.library_management.model.User;
 import com.library.library_management.repository.UserRepository;
+import com.library.library_management.security.JwtUtils;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,7 @@ public class AuthService {
     // We need these two to save users and hash passwords
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtils jwtUtils;
 
 
     /**
@@ -29,9 +32,10 @@ public class AuthService {
      * the BCryptPasswordEncoder we defined in SecurityConfig.
      * No @Autowired needed because there's only one constructor.
      */
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtUtils = jwtUtils;
     }
 
 
@@ -77,4 +81,21 @@ public class AuthService {
         // Step 6: Return response (token is null for now — JWT comes on a later day)
         return new AuthResponseDTO(null, user.getEmail(), user.getRole().name());
     }
+
+
+    public AuthResponseDTO login(LoginDTO dto){
+        // Fetch the user — if email not found, wrong credentials
+        User user = userRepository.findByEmail(dto.getEmail())
+                .orElseThrow(() -> new BusinessException("Invalid email or password"));
+
+        //Check if the plain text password matches the stored hash — if not, throw an exception
+        if(!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            throw new BusinessException("Invalid email or password");
+        }
+
+        //create a jwt then return it
+        return new AuthResponseDTO(jwtUtils.generateToken(user.getEmail()), user.getEmail(), user.getRole().name());
+
+    }
+
 }
