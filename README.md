@@ -1,6 +1,6 @@
 # 📚 Library Management System
 
-> ⚠️ **This project is currently in development.** I'm building this over 3 weeks as a portfolio project while learning Spring Boot.
+> ⚠️ **This project is currently in development.** Building over 3 weeks as a portfolio project while learning Spring Boot.
 
 ---
 
@@ -21,10 +21,10 @@ The project covers: REST APIs, JWT authentication, role-based access control, da
 - Spring Security + JWT (jjwt 0.12.6)
 - Spring Data JPA / Hibernate
 
-**Frontend** *(not started yet)*
+**Frontend** *(in progress — Week 3)*
 - React + Vite
 
-**Infrastructure** *(planned)*
+**Infrastructure** *(planned — Week 3)*
 - Docker Compose
 - GitHub Actions CI/CD
 - Render / Railway deployment
@@ -41,10 +41,9 @@ The project covers: REST APIs, JWT authentication, role-based access control, da
 - [x] JWT authentication — login returns a signed token
 - [x] JWT filter — validates token on every request
 - [x] Stateless session management
-
-### 🔄 In Progress
-- [ ] Role-based authorization (USER vs ADMIN)
-- [ ] Admin-only book write endpoints
+- [x] Role-based authorization — ADMIN and USER roles enforced
+- [x] Admin-only book write endpoints (POST, PUT, DELETE)
+- [x] Correct 401 / 403 distinction — unauthenticated vs unauthorized
 
 ### 📅 Planned
 - [ ] Borrow and return books
@@ -87,8 +86,23 @@ Authorization: Bearer <token>
         ↓
 JwtAuthenticationFilter validates token → sets SecurityContext
         ↓
-SecurityConfig allows or denies based on role
+SecurityConfig + @PreAuthorize enforce access by role
 ```
+
+### Authorization Model
+
+Two layers work together:
+
+| Layer | Responsibility |
+|-------|---------------|
+| `SecurityConfig` | Broad rules — public vs authenticated |
+| `@PreAuthorize` | Fine-grained rules — ADMIN vs USER per endpoint |
+
+| Role | Can do |
+|------|--------|
+| Guest (no token) | Browse books, register, login |
+| USER | Everything a guest can + borrow and return books |
+| ADMIN | Everything a user can + create, update, delete books |
 
 ### Database Schema
 
@@ -111,9 +125,9 @@ created_at            cover_image_url       status (ACTIVE/RETURNED)
 |--------|----------|--------|--------|
 | GET | `/api/v1/books` | Public | ✅ Done |
 | GET | `/api/v1/books/{id}` | Public | ✅ Done |
-| POST | `/api/v1/books` | Admin only | 🔄 Auth done, role guard coming |
-| PUT | `/api/v1/books/{id}` | Admin only | 🔄 Auth done, role guard coming |
-| DELETE | `/api/v1/books/{id}` | Admin only | 🔄 Auth done, role guard coming |
+| POST | `/api/v1/books` | Admin only | ✅ Done |
+| PUT | `/api/v1/books/{id}` | Admin only | ✅ Done |
+| DELETE | `/api/v1/books/{id}` | Admin only | ✅ Done |
 | POST | `/api/v1/auth/register` | Public | ✅ Done |
 | POST | `/api/v1/auth/login` | Public | ✅ Done |
 | POST | `/api/v1/borrows/{bookId}/borrow` | User | 📅 Planned |
@@ -167,7 +181,7 @@ library-system/
 │   └── src/main/java/com/library/library_management/
 │       ├── config/            # Security configuration
 │       ├── controller/        # REST controllers
-│       ├── dto/               # Data transfer objects (auth, book)
+│       ├── dto/               # Data transfer objects (auth, book, borrow)
 │       ├── exception/         # Custom exceptions + global handler
 │       ├── model/             # JPA entities (User, Book, Role)
 │       ├── repository/        # Spring Data repositories
@@ -201,6 +215,7 @@ All errors return a consistent JSON format:
 - JWT secret is loaded from an environment variable — never hardcoded in source
 - Tokens expire after 24 hours
 - Sessions are stateless — no server-side session storage
+- Unauthenticated requests return **401**; authenticated but unauthorized requests return **403**
 
 ---
 
