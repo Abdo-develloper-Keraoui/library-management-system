@@ -147,7 +147,20 @@ The signature is the key insight. If someone tampers with the payload, the signa
 |Update `SecurityConfig`|Register the filter, make sessions stateless|
 
 
+## Authentication — JWT
 
+- Using JWT (JSON Web Token) for stateless authentication
+- Token has 3 parts: Header (algorithm), Payload (email/role), Signature (tamper-proof)
+- Server signs the token with a secret key — if payload is tampered, signature breaks
+- On every request, client sends token in Authorization header — filter validates it
+- NOT using sessions — REST APIs should be stateless
+
+## Secret Key — Environment Variable
+
+- Secret key is NOT hardcoded in JwtUtils.java — if pushed to public GitHub, anyone can forge tokens
+- Secret key lives in application.properties as ${JWT_SECRET} placeholder
+- Actual value is set in IntelliJ run configuration (local) and Docker Compose env block (deployment)
+- This way the real value never touches the codebase
 
 ## Locked MVP Feature Set
 
