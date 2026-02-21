@@ -91,7 +91,63 @@
 ### 20. Password hashing done in the service layer, not the controller or entity
 **Why:** The service layer is where business logic lives — and hashing a password before storing it is business logic, not an HTTP concern (controller) or a persistence concern (entity). The controller's job is to receive the request and pass the DTO down. The entity's job is to map to the database. If hashing were done in the controller, every controller that creates a user would have to remember to hash — that's duplication and a security risk. In the service, it happens once, in one place, every time. The entity stores a plain String field for password because JPA/Hibernate doesn't know or care what the string contains — it just persists what it's given.
 
+### 21. Validation errors handled in GlobalExceptionHandler, not per-controller
+**Why:** @Valid throws MethodArgumentNotValidException — without a handler, Spring returns its own inconsistent error format. Catching it once in GlobalExceptionHandler means every endpoint in the entire application returns the same consistent ErrorResponse shape on validation failure. One place to change, consistent behaviour everywhere.
+
 ---
+
+## Concepts — JWT
+
+**What is a JWT?**
+
+When you log in, the server needs a way to "remember" you on future requests. But we're building a stateless REST API — the server doesn't store sessions. So instead, the server hands you a _signed piece of paper_ that says "this is who you are."
+
+That piece of paper is a JWT — JSON Web Token.
+
+It looks like this:
+
+```
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyQGdtYWlsLmNvbSJ9.abc123xyz
+```
+
+Three parts, separated by dots:
+
+```
+HEADER . PAYLOAD . SIGNATURE
+```
+
+- **Header** — algorithm used to sign it (e.g. HS256)
+- **Payload** — the actual data (e.g. email, role, expiry time). Anyone can read this — it's just Base64 encoded, not encrypted.
+- **Signature** — a cryptographic hash of header + payload, signed with a **secret key** only your server knows
+
+The signature is the key insight. If someone tampers with the payload, the signature breaks. Your server can detect that instantly.
+
+---
+
+**The flow, request by request:**
+
+1. User sends `POST /login` with email + password
+2. Server verifies credentials → generates a JWT → sends it back
+3. Client stores the token (in memory or localStorage)
+4. On every future request, client sends: `Authorization: Bearer <token>`
+5. Your `JwtAuthenticationFilter` intercepts the request, reads the token, validates the signature, extracts the email, loads the user, and tells Spring Security "this user is authenticated"
+6. Spring Security allows or denies the request based on their role
+
+---
+
+**The 6 things you're building today, now that you have context:**
+
+|Thing|Purpose|
+|---|---|
+|`JwtUtils`|Generate a token, validate a token, extract email from token|
+|`CustomUserDetailsService`|Load a user from DB by email (Spring Security requires this)|
+|`JwtAuthenticationFilter`|Runs on every request — reads, validates, sets auth context|
+|`login()` in AuthService|Verify password, call JwtUtils, return real token|
+|`POST /login` endpoint|Wire it up in AuthController|
+|Update `SecurityConfig`|Register the filter, make sessions stateless|
+
+
+
 
 ## Locked MVP Feature Set
 
