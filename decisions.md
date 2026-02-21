@@ -88,6 +88,8 @@
 
 **Why:** Without it, the same `new BookResponseDTO(...)` constructor call was repeated four times across `getAllBooks`, `getBookById`, `createBook`, and `updateBook`. If a field is ever added to `BookResponseDTO`, you'd have to find and update four separate places. Extracting it into a single private method means one change propagates everywhere. This is the DRY principle — Don't Repeat Yourself.
 
+### 20. Password hashing done in the service layer, not the controller or entity
+**Why:** The service layer is where business logic lives — and hashing a password before storing it is business logic, not an HTTP concern (controller) or a persistence concern (entity). The controller's job is to receive the request and pass the DTO down. The entity's job is to map to the database. If hashing were done in the controller, every controller that creates a user would have to remember to hash — that's duplication and a security risk. In the service, it happens once, in one place, every time. The entity stores a plain String field for password because JPA/Hibernate doesn't know or care what the string contains — it just persists what it's given.
 ---
 
 ## Locked MVP Feature Set
