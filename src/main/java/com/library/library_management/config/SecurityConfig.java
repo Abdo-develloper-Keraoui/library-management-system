@@ -4,6 +4,7 @@ import com.library.library_management.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -24,6 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *   - Everything else: requires a valid JWT token in the Authorization header
  */
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     // Our custom JWT filter — injected here so we can plug it into the filter chain
