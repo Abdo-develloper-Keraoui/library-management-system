@@ -1,14 +1,14 @@
-# Library Management System
+# 📚 Library Management System
 
-> ⚠️ **This project is currently in development.** Not all features are complete yet. I'm building this over 3 weeks as a portfolio project while learning Spring Boot.
+> ⚠️ **This project is currently in development.** I'm building this over 3 weeks as a portfolio project while learning Spring Boot.
 
 ---
 
 ## What is this?
 
-A full-stack library management system where users can browse books, borrow and return them, and admins can manage the book catalogue. I'm building this to practice backend development with Java and Spring Boot, and to have something real to show in internship interviews.
+A full-stack library management system where users can browse books, borrow and return them, and admins can manage the book catalogue. Built to practice backend development with Java and Spring Boot, and to have something real to show in internship interviews.
 
-The project covers things I wanted to get hands-on with: REST APIs, JWT authentication, role-based access control, database relationships, and eventually Docker deployment.
+The project covers: REST APIs, JWT authentication, role-based access control, database relationships, pessimistic locking for concurrency, and Docker deployment.
 
 ---
 
@@ -16,9 +16,9 @@ The project covers things I wanted to get hands-on with: REST APIs, JWT authenti
 
 **Backend**
 - Java 21
-- Spring Boot 3.4.x
+- Spring Boot 4.0.x
 - PostgreSQL 17
-- Spring Security + JWT
+- Spring Security + JWT (jjwt 0.12.6)
 - Spring Data JPA / Hibernate
 
 **Frontend** *(not started yet)*
@@ -33,17 +33,20 @@ The project covers things I wanted to get hands-on with: REST APIs, JWT authenti
 
 ## Features
 
-### Done
+### ✅ Done
 - [x] Book CRUD (create, read, update, delete)
 - [x] Input validation and global error handling
-- [x] Clean JSON error responses with status codes
+- [x] Consistent JSON error responses
+- [x] User registration with BCrypt password hashing
+- [x] JWT authentication — login returns a signed token
+- [x] JWT filter — validates token on every request
+- [x] Stateless session management
 
-### In Progress
-- [ ] User registration and login
-- [ ] JWT authentication
+### 🔄 In Progress
 - [ ] Role-based authorization (USER vs ADMIN)
+- [ ] Admin-only book write endpoints
 
-### Planned
+### 📅 Planned
 - [ ] Borrow and return books
 - [ ] Borrow history per user
 - [ ] Max 3 active borrows per user
@@ -65,9 +68,27 @@ Controller  →  Service  →  Repository  →  Database
 ```
 
 - **Controller** — handles HTTP requests and responses, nothing else
-- **Service** — all business logic and validation lives here
+- **Service** — all business logic lives here
 - **Repository** — talks to the database via Spring Data JPA
-- **DTOs** — separate classes for what comes in and what goes out (entities are never exposed directly)
+- **DTOs** — separate classes for input and output (entities are never exposed directly)
+- **Security** — JWT filter intercepts every request, validates token, sets auth context
+
+### Authentication Flow
+
+```
+POST /api/v1/auth/login  {email, password}
+        ↓
+Server verifies password with BCrypt
+        ↓
+Server generates signed JWT token
+        ↓
+Client stores token, sends it on every request:
+Authorization: Bearer <token>
+        ↓
+JwtAuthenticationFilter validates token → sets SecurityContext
+        ↓
+SecurityConfig allows or denies based on role
+```
 
 ### Database Schema
 
@@ -76,29 +97,29 @@ users                 books                 borrows
 ─────                 ─────                 ───────
 id                    id                    id
 first_name            title                 user_id  → FK
-last_name             author                book_id  → FK
-email                 isbn                  borrow_date
-password (hashed)     pub_year              due_date
-role                  copies_available      return_date (nullable)
-created_at            cover_image_url       status
+last_name             author (String)       book_id  → FK
+email (unique)        isbn                  borrow_date
+password (BCrypt)     pub_year              due_date
+role (USER/ADMIN)     copies_available      return_date (nullable)
+created_at            cover_image_url       status (ACTIVE/RETURNED)
                       created_at
 ```
 
 ### API Endpoints
 
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| GET | `/api/v1/books` | Public | Get all books |
-| GET | `/api/v1/books/{id}` | Public | Get book by ID |
-| POST | `/api/v1/books` | Admin | Create a book |
-| PUT | `/api/v1/books/{id}` | Admin | Update a book |
-| DELETE | `/api/v1/books/{id}` | Admin | Delete a book |
-| POST | `/api/auth/register` | Public | Register |
-| POST | `/api/auth/login` | Public | Login |
-| POST | `/api/v1/borrows/{bookId}/borrow` | User | Borrow a book |
-| PUT | `/api/v1/borrows/{borrowId}/return` | User | Return a book |
-| GET | `/api/v1/borrows/my` | User | My borrow history |
-| GET | `/api/v1/borrows` | Admin | All borrows |
+| Method | Endpoint | Access | Status |
+|--------|----------|--------|--------|
+| GET | `/api/v1/books` | Public | ✅ Done |
+| GET | `/api/v1/books/{id}` | Public | ✅ Done |
+| POST | `/api/v1/books` | Admin only | 🔄 Auth done, role guard coming |
+| PUT | `/api/v1/books/{id}` | Admin only | 🔄 Auth done, role guard coming |
+| DELETE | `/api/v1/books/{id}` | Admin only | 🔄 Auth done, role guard coming |
+| POST | `/api/v1/auth/register` | Public | ✅ Done |
+| POST | `/api/v1/auth/login` | Public | ✅ Done |
+| POST | `/api/v1/borrows/{bookId}/borrow` | User | 📅 Planned |
+| PUT | `/api/v1/borrows/{id}/return` | User | 📅 Planned |
+| GET | `/api/v1/borrows/my` | User | 📅 Planned |
+| GET | `/api/v1/borrows` | Admin | 📅 Planned |
 
 ---
 
@@ -122,7 +143,13 @@ cd library-system
 docker-compose up -d
 ```
 
-3. Run the backend
+3. Set the JWT secret as an environment variable
+```bash
+export JWT_SECRET=your-secret-key-at-least-32-characters-long
+```
+> On Windows (PowerShell): `$env:JWT_SECRET="your-secret-key"`
+
+4. Run the backend
 ```bash
 cd library-management
 ./mvnw spring-boot:run
@@ -138,16 +165,17 @@ The API will be available at `http://localhost:8081`
 library-system/
 ├── library-management/        # Spring Boot backend
 │   └── src/main/java/com/library/library_management/
-│       ├── config/            # Security config
+│       ├── config/            # Security configuration
 │       ├── controller/        # REST controllers
-│       ├── dto/               # Data transfer objects
+│       ├── dto/               # Data transfer objects (auth, book)
 │       ├── exception/         # Custom exceptions + global handler
-│       ├── model/             # JPA entities
+│       ├── model/             # JPA entities (User, Book, Role)
 │       ├── repository/        # Spring Data repositories
-│       └── service/           # Business logic
+│       ├── security/          # JWT utils, filter, UserDetailsService
+│       └── service/           # Business logic (Auth, Book)
 ├── library-frontend/          # React frontend (coming soon)
 ├── docker-compose.yml
-├── decisions.md               # Why I made certain technical choices
+├── decisions.md               # Technical decision log
 └── README.md
 ```
 
@@ -167,10 +195,19 @@ All errors return a consistent JSON format:
 
 ---
 
-## Notes
+## Security Notes
 
-I'm keeping a `decisions.md` file in the root of the project where I document why I made certain choices (like why pessimistic locking over optimistic, why constructor injection, etc.). Useful for interview prep.
+- Passwords are hashed with BCrypt before storage — plain text passwords are never saved
+- JWT secret is loaded from an environment variable — never hardcoded in source
+- Tokens expire after 24 hours
+- Sessions are stateless — no server-side session storage
 
 ---
 
-*Built by [Abdottawab KERAOUI] — currently learning Spring Boot and backend development.*
+## Notes
+
+I'm keeping a `decisions.md` file in the root of the project documenting why I made certain choices — why pessimistic over optimistic locking, why constructor injection, why DTOs over exposing entities, etc. Useful for interview prep.
+
+---
+
+*Built by [Abdottawab KERAOUI] — learning Spring Boot and backend development.*
