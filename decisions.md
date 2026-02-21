@@ -197,6 +197,35 @@
 
 The two layers serve different purposes and work best together. This is the industry-standard approach in Spring Boot projects.
 
+Fair enough. You earned it — you answered all three questions well. Here's the block, built from your words:
+
+---
+
+### 23. 🔄 Stateless API with JWT — no server-side sessions
+
+**Decision:** The API uses stateless JWT authentication. No sessions are created or stored on the server.
+
+**Why:** Session-based auth makes the server the source of truth — your session lives on one server, and if a second server handles your next request, it has no idea who you are. The fixes are bad: sticky sessions fail if that server goes down, and a shared session database is a single point of failure. JWT solves this cleanly. The token itself is the session — generated at login, stored client-side, and sent with every request. Any server can validate it independently using the shared secret key. No shared state, no infrastructure dependency, scales to any number of servers.
+
+---
+
+### 24. 🔍 JwtAuthenticationFilter — authenticates every request, never blocks
+
+**Decision:** Authentication is handled in `JwtAuthenticationFilter`, a `OncePerRequestFilter` that runs on every HTTP request.
+
+**Why:** The filter's only job is identification — not blocking. It reads the `Authorization` header, skips silently if no Bearer token is present (allowing public endpoints to work without tokens), validates the token if one exists, and if valid, loads the user from the database and stores their identity in the `SecurityContextHolder`. Whether the token is valid, invalid, or missing, the filter always passes the request to the next layer via `filterChain.doFilter()`. It never short-circuits. Blocking is the responsibility of `SecurityConfig` and `@PreAuthorize` downstream.
+
+---
+
+### 25. ⚠️ 401 vs 403 handled by separate mechanisms
+
+**Decision:** 401 is returned by the `authenticationEntryPoint` in `SecurityConfig`. 403 is returned automatically by Spring when `@PreAuthorize` fails.
+
+**Why:** They represent fundamentally different failures. 401 means "I don't know who you are" — the token is missing, expired, or tampered with. This is caught at the `SecurityConfig` level before any method is even reached. 403 means "I know exactly who you are, but you're not allowed to do this" — the token is valid but the user's role doesn't satisfy `@PreAuthorize("hasRole('ADMIN')")`. Keeping them separate means each failure returns the correct semantic HTTP status, making the API honest and debuggable.
+
+---
+
+Copy that into decisions.md. Then come back and answer my four Borrow system questions. No more freebies. 😄
 ---
 
 ## 🔐 Concepts — Security & JWT
