@@ -7,6 +7,7 @@ import com.library.library_management.service.BookService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,19 +38,21 @@ public class BookController {
         return ResponseEntity.ok(book);
     }
 
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<BookResponseDTO> createBook(@RequestBody @Valid BookCreateDTO dto) {
         BookResponseDTO book = bookService.createBook(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(book);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<BookResponseDTO> updateBook(@PathVariable Long id, @RequestBody @Valid BookUpdateDTO dto) {
         BookResponseDTO book = bookService.updateBook(id, dto);
         return ResponseEntity.ok(book);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteBook(@PathVariable Long id) {
         bookService.deleteBook(id);
