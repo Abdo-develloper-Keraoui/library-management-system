@@ -1,6 +1,7 @@
 package com.library.library_management.config;
 
 import com.library.library_management.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -66,11 +67,16 @@ public class SecurityConfig {
                 // No sessions — JWT handles identity on every request
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+                )
 
                 .authorizeHttpRequests(auth -> auth
                         // Public — no token needed
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/books/**").permitAll()
+                        .requestMatchers("/error").permitAll()//to allow for other 403 mappings to pass through
                         // Everything else requires a valid token
                         .anyRequest().authenticated()
                 )
