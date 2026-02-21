@@ -28,6 +28,7 @@ public class BookCreateDTO {
     @Min(value = 1000, message = "Publication year must be valid")
     private Integer pubYear;
 
+
     @NotNull(message = "Copies available is required")
     @Min(value = 1, message = "At least one copy is required")
     private Integer copiesAvailable;
