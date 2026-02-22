@@ -1,4 +1,4 @@
-> Every major decision made during this project — **what** was decided and **why**.  
+> Every major decision made during this project — **what** was decided and **why**.
 > Useful for interview prep, future reference, and proving you actually thought about your choices.
 
 ---
@@ -153,11 +153,11 @@
 
 ---
 
-### 19. 🔁 `mapToDTO()` private helper method in BookService
+### 19. 🔁 `mapToDTO()` private helper method in service classes
 
-**Decision:** Single private `mapToDTO()` method instead of repeating the DTO constructor.
+**Decision:** Single private `mapToDTO()` method instead of repeating the DTO constructor call across multiple methods.
 
-**Why:** Without it, the same `new BookResponseDTO(...)` call is repeated four times. If a field is ever added to `BookResponseDTO`, you'd have to find and update four places. Extracting it once is the DRY principle — Don't Repeat Yourself.
+**Why:** Without it, the same constructor call is repeated across every method that returns a DTO. If a field is ever added, you'd have to find and update every occurrence. Extracting it once is the DRY principle — Don't Repeat Yourself. Applied in both `BookService` and `BorrowService`.
 
 ---
 
@@ -191,13 +191,7 @@
 - `PUT /api/v1/books/{id}` — ADMIN only
 - `DELETE /api/v1/books/{id}` — ADMIN only
 
-**Why:** Putting all rules in `SecurityConfig` centralizes them but creates a hidden coupling problem — a developer reading `BookController.java` has no idea who can call each method without opening a separate file. As the project grows, `SecurityConfig` becomes a long list of URL patterns that's increasingly fragile (Spring evaluates matchers in order; getting the order wrong silently breaks rules).
-
-`@PreAuthorize` on the controller puts the authorization rule at the point of definition — right next to the method it protects. This is immediately readable and scales cleanly as new controllers and endpoints are added.
-
-The two layers serve different purposes and work best together. This is the industry-standard approach in Spring Boot projects.
-
-Fair enough. You earned it — you answered all three questions well. Here's the block, built from your words:
+**Why:** Putting all rules in `SecurityConfig` centralizes them but creates a hidden coupling problem — a developer reading `BookController.java` has no idea who can call each method without opening a separate file. As the project grows, `SecurityConfig` becomes a long list of URL patterns that's increasingly fragile (Spring evaluates matchers in order; getting the order wrong silently breaks rules). `@PreAuthorize` on the controller puts the authorization rule at the point of definition — right next to the method it protects. The two layers serve different purposes and work best together. This is the industry-standard approach in Spring Boot projects.
 
 ---
 
@@ -221,111 +215,32 @@ Fair enough. You earned it — you answered all three questions well. Here's the
 
 **Decision:** 401 is returned by the `authenticationEntryPoint` in `SecurityConfig`. 403 is returned automatically by Spring when `@PreAuthorize` fails.
 
-**Why:** They represent fundamentally different failures. 401 means "I don't know who you are" — the token is missing, expired, or tampered with. This is caught at the `SecurityConfig` level before any method is even reached. 403 means "I know exactly who you are, but you're not allowed to do this" — the token is valid but the user's role doesn't satisfy `@PreAuthorize("hasRole('ADMIN')")`. Keeping them separate means each failure returns the correct semantic HTTP status, making the API honest and debuggable.
+**Why:** They represent fundamentally different failures. 401 means "I don't know who you are" — the token is missing, expired, or tampered with. 403 means "I know exactly who you are, but you're not allowed to do this" — the token is valid but the user's role doesn't satisfy `@PreAuthorize("hasRole('ADMIN')")`. Keeping them separate means each failure returns the correct semantic HTTP status, making the API honest and debuggable.
 
 ---
 
-Copy that into decisions.md. Then come back and answer my four Borrow system questions. No more freebies. 😄
----
+### 26. 🚫 No BorrowRequestDTO — bookId comes from URL path
 
-## 🔐 Concepts — Security & JWT
+**Decision:** The borrow endpoint `POST /api/v1/borrows/{bookId}/borrow` takes `bookId` as a path variable. No request body, no DTO needed for input.
 
-### What is a JWT?
-
-When a user logs in, the server needs a way to "remember" them on future requests. But this is a stateless REST API — no sessions. So instead, the server hands the client a **signed piece of paper** that says "this is who you are."
-
-That piece of paper is a **JWT — JSON Web Token**.
-
-```
-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyQGdtYWlsLmNvbSJ9.abc123xyz
-        HEADER                        PAYLOAD                  SIGNATURE
-```
-
-| Part | Contents |
-|------|----------|
-| **Header** | Algorithm used to sign (e.g. HS256) |
-| **Payload** | Data — email, role, expiry. Base64 encoded, NOT encrypted — anyone can read it |
-| **Signature** | Cryptographic hash of header + payload, signed with the server's secret key |
-
-> ⚠️ **The signature is the key insight.** If someone tampers with the payload, the signature breaks. The server detects it instantly.
+**Why:** DTOs exist at the controller boundary to represent what travels over the wire in the request body. When the only input is a path variable and a JWT-derived userId, there is nothing to deserialize. Creating an empty or single-field DTO would be unnecessary ceremony with no benefit.
 
 ---
 
-### The Full JWT Flow
+### 27. ⏰ `@PrePersist` handles borrowDate, dueDate, and status — not the service
 
-```
-1. POST /api/v1/auth/login  {email, password}
-         ↓
-2. AuthService verifies password with BCrypt
-         ↓
-3. JwtUtils generates a signed token
-         ↓
-4. Server returns: { "token": "eyJhbG..." }
-         ↓
-5. Client stores the token
-         ↓
-6. Every subsequent request:
-   Authorization: Bearer eyJhbG...
-         ↓
-7. JwtAuthenticationFilter reads + validates the token,
-   extracts email, loads user, sets SecurityContextHolder
-         ↓
-8. SecurityConfig allows or denies based on role
-```
+**Decision:** `borrowDate`, `dueDate` (borrowDate + 14 days), and initial `status` (ACTIVE) are set automatically in `Borrow.java` via `@PrePersist`. The service only sets `user` and `book`.
+
+**Why:** These values are always the same at creation time — they are not decisions the service needs to make. Putting them in `@PrePersist` guarantees they are always set correctly regardless of how a `Borrow` is created, and keeps the service focused on business logic rather than entity initialization.
 
 ---
 
-### The 6 Things Built for JWT on Day 7
+### 28. 🔍 `findById().orElseThrow()` — not `getReferenceById()`
 
-| Thing | Purpose |
-|-------|---------|
-| `JwtUtils` | Generate a token, validate a token, extract email from token |
-| `CustomUserDetailsService` | Load user from DB by email — Spring Security contract |
-| `JwtAuthenticationFilter` | Runs on every request — reads, validates, sets auth context |
-| `login()` in AuthService | Verify password, call JwtUtils, return real token |
-| `POST /auth/login` | Wire it up in AuthController |
-| Updated `SecurityConfig` | Register filter, stateless sessions, define public vs protected |
+**Decision:** All entity lookups use `findById().orElseThrow()`, never `getReferenceById()`.
+
+**Why:** `getReferenceById()` returns a Hibernate proxy — it does not hit the database immediately and will not throw if the entity doesn't exist until Hibernate tries to use the proxy later, causing confusing errors at the wrong point. `findById().orElseThrow()` hits the database immediately, returns a real entity, and throws `ResourceNotFoundException` at the right moment with a clear message.
 
 ---
 
-### Secret Key — Environment Variable
-
-- Secret key is **NOT hardcoded** in `JwtUtils.java` — anyone with the key can forge tokens
-- Stored in `application.properties` as `${JWT_SECRET}` placeholder
-- Actual value set in IntelliJ run configuration (local) and Docker Compose env block (deployment)
-- The real value **never touches the codebase**
-
----
-
-### Authentication vs Authorization
-
-| Concept | Question it answers | Where it lives |
-|---------|-------------------|----------------|
-| **Authentication** | Who are you? | `JwtAuthenticationFilter` |
-| **Authorization** | What are you allowed to do? | `SecurityConfig` + `@PreAuthorize` |
-
-> The filter identifies. The config decides. They are separate concerns.
-
----
-
-## 🔒 Locked MVP Feature Set
-
-| Feature | Status |
-|---------|--------|
-| Register / Login (JWT) | ✅ Done |
-| Role-based access: USER and ADMIN | ✅ Done |
-| Book CRUD (Admin only) | ✅ Done |
-| Public book browsing | ✅ Done |
-| Borrow a book / Return a book | 📅 Days 10–11 |
-| Borrow status tracking (ACTIVE / RETURNED) | 📅 Days 10–11 |
-| Business rules: max 3 borrows, no duplicates | 📅 Days 10–11 |
-| Global exception handling + validation | ✅ Done |
-| Swagger API documentation | 📅 Day 12 |
-| Docker Compose for deployment | 📅 Day 18 |
-| Deployed to free hosting platform (live URL) | 📅 Day 19 |
-| Basic CI/CD pipeline (GitHub Actions) | 📅 Day 18 |
-| README + this decision log | ✅ In progress |
-
----
-
-_Last updated: Day 8 ✅_
+_Last updated: Day 10 🔄_
