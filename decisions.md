@@ -182,11 +182,27 @@
 
 ---
 
-### 22. Single BorrowResponseDTO for both user and admin endpoints — user fields always included
+### 22. Two separate borrow response DTOs — one for users, one for admins
 
-**Decision:** `BorrowResponseDTO` includes `userId`, `userFirstName`, `userLastName`, and `userEmail` alongside the borrow and book fields. The same DTO is returned from both `GET /api/v1/borrows/my` (user) and `GET /api/v1/borrows` (admin).
+**Decision:** `BorrowResponseDTO` is returned to users from `GET /api/v1/borrows/my`. `AdminBorrowResponseDTO` is returned to admins from `GET /api/v1/borrows`. The admin DTO includes additional fields: `userId`, `userFirstName`, `userLastName`, `userEmail`. `BorrowService` has two corresponding private mapping methods: `mapToDTO()` and `mapToAdminDTO()`.
 
-**Why:** The two endpoints are protected differently — regular users cannot reach the admin endpoint, so there is no scenario where sensitive user data leaks to the wrong caller. Creating a separate `AdminBorrowResponseDTO` would introduce a second DTO, a second `mapToDTO()` method, and additional maintenance overhead for zero security benefit. One DTO, one mapping method, one place to change.
+**Why:** A regular user calling `GET /borrows/my` has no need for their own name and email echoed back — they already know who they are. An admin calling `GET /borrows` needs to know *who* borrowed *what*, so borrower identity is essential. The endpoints are protected differently at the controller level, so there is no leakage risk. Two DTOs, two mappers, clean separation of concerns. The maintenance overhead of a second DTO is justified by the clean API contract it produces.
+
+---
+
+### 23. Controller extracts userId from JWT — service receives a plain Long
+
+**Decision:** `BorrowController` resolves the authenticated user via `@AuthenticationPrincipal` and passes `userId` (a `Long`) to the service. The service never touches `SecurityContextHolder` or `UserDetails`.
+
+**Why:** The service layer should be agnostic of HTTP and security concerns. If the service reached into `SecurityContextHolder` directly, it would be tightly coupled to Spring Security — impossible to unit test without a security context, and the service would be doing two jobs. The controller's job is to translate HTTP inputs (including JWT identity) into plain Java values. The service's job is business logic. Each layer does one thing.
+
+---
+
+### 24. Ownership check in returnBook uses ID comparison — not a DB lookup
+
+**Decision:** `returnBook()` verifies the borrow belongs to the caller with `borrow.getUser().getId().equals(userId)`. No additional database query.
+
+**Why:** The `borrow` entity is already loaded — it contains the full `User` relationship. Calling `userRepository.findById(userId)` to get a `User` object just to compare IDs would be a wasted round-trip to the database. Compare the IDs directly from what you already have. Also: `Long` is an object — `==` compares references, not values. Always use `.equals()` for object equality in Java.
 
 ---
 
@@ -230,7 +246,9 @@ eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyQGdtYWlsLmNvbSJ9.abc123xyz
 7. JwtAuthenticationFilter reads + validates the token,
    extracts email, loads user, sets SecurityContextHolder
          ↓
-8. SecurityConfig / @PreAuthorize allows or denies based on role
+8. Controller accesses the user via @AuthenticationPrincipal
+         ↓
+9. SecurityConfig / @PreAuthorize allows or denies based on role
 ```
 
 ---
@@ -306,6 +324,12 @@ Entities are the internal database representation. DTOs (Data Transfer Objects) 
 
 ---
 
+### @AuthenticationPrincipal — How Controllers Access the Current User
+
+After `JwtAuthenticationFilter` validates the token and stores the user in `SecurityContextHolder`, any controller method can inject the authenticated user directly using `@AuthenticationPrincipal UserDetails userDetails`. Spring resolves this automatically — no manual `SecurityContextHolder.getContext()` call needed. `userDetails.getUsername()` returns the email (the value `CustomUserDetailsService` loaded the user by). From the email, the controller performs one `userRepository.findByEmail()` call to get the full `User` entity and extract the `userId` to pass to the service.
+
+---
+
 ## 🔒 MVP Feature Checklist
 
 | Feature | Status |
@@ -319,12 +343,15 @@ Entities are the internal database representation. DTOs (Data Transfer Objects) 
 | Business rules: max 3 borrows, no duplicates, no copies | ✅ Done |
 | Pessimistic locking on borrow | ✅ Done |
 | Global exception handling + validation | ✅ Done |
+| Two borrow DTOs (user-facing + admin-facing) | ✅ Done |
+| All endpoints Postman tested | ✅ Done |
 | Swagger API documentation | 📅 Day 12 |
 | Docker Compose for deployment | 📅 Day 18 |
 | Deployed to free hosting platform (live URL) | 📅 Day 19 |
 | Basic CI/CD pipeline (GitHub Actions) | 📅 Day 18 |
-| README + this decision log | ✅ In progress |
+| React + Vite frontend | 📅 Day 13–17 |
+| README | ✅ In progress |
 
 ---
 
-_Last updated: Day 11 ✅_
+_Last updated: Day 11 ✅ — Backend feature-complete. All Postman tests passed._
