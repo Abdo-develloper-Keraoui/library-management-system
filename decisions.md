@@ -206,6 +206,18 @@
 
 ---
 
+### 25. Swagger UI added for interactive API documentation
+
+**Decision:** Added `springdoc-openapi-starter-webmvc-ui` and created `SwaggerConfig.java`
+with JWT Bearer token support. Swagger URLs whitelisted in `SecurityConfig`.
+
+**Why:** Without documentation, anyone wanting to use or evaluate the API must read
+the source code. Swagger generates an interactive UI at `/swagger-ui.html` where
+endpoints can be browsed and tested directly in the browser using a real JWT token.
+For a portfolio project, it lets interviewers explore the API without Postman or
+any setup.
+
+---
 ## 🧠 Key Concepts — How the Backend Actually Works
 
 ### What is a JWT?
