@@ -43,6 +43,7 @@ public class Borrow {
     private BorrowStatus status;
 
     private static final int BORROW_PERIOD_DAYS  = 14;
+
     @PrePersist
     protected void onCreate() {
         this.borrowDate = LocalDate.now();
