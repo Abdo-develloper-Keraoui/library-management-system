@@ -1,5 +1,6 @@
 package com.library.library_management.service;
 
+import com.library.library_management.dto.borrow.AdminBorrowResponseDTO;
 import com.library.library_management.dto.borrow.BorrowResponseDTO;
 import com.library.library_management.exception.BusinessException;
 import com.library.library_management.exception.ResourceNotFoundException;
@@ -113,10 +114,10 @@ public class BorrowService {
                 .toList();
     }
 
-    public List<BorrowResponseDTO> getAllBorrows() {
+    public List<AdminBorrowResponseDTO> getAllBorrows() {
         return borrowRepository.findAll()
                 .stream() // opens a pipeline
-                .map(this::mapToDTO)
+                .map(this::mapToAdminDTO)
                 .toList();
     }
 
@@ -140,6 +141,24 @@ public class BorrowService {
                 borrow.getDueDate(),
                 borrow.getReturnDate(),
                 borrow.getStatus()
+        );
+    }
+
+    private AdminBorrowResponseDTO mapToAdminDTO(Borrow borrow) {
+        return new AdminBorrowResponseDTO(
+                borrow.getId(),
+                borrow.getBook().getTitle(),
+                borrow.getBook().getAuthor(),
+                borrow.getBook().getIsbn(),
+                borrow.getBook().getPubYear(),
+                borrow.getBorrowDate(),
+                borrow.getDueDate(),
+                borrow.getReturnDate(),
+                borrow.getStatus(),
+                borrow.getUser().getId(),
+                borrow.getUser().getFirstName(),
+                borrow.getUser().getLastName(),
+                borrow.getUser().getEmail()
         );
     }
 }

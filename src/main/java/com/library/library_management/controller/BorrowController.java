@@ -1,5 +1,6 @@
 package com.library.library_management.controller;
 
+import com.library.library_management.dto.borrow.AdminBorrowResponseDTO;
 import com.library.library_management.dto.borrow.BorrowResponseDTO;
 import com.library.library_management.exception.ResourceNotFoundException;
 import com.library.library_management.model.User;
@@ -62,8 +63,8 @@ public class BorrowController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public ResponseEntity<List<BorrowResponseDTO>> getAllBorrows() {
-        List<BorrowResponseDTO> allBorrows = borrowService.getAllBorrows();
+    public ResponseEntity<List<AdminBorrowResponseDTO>> getAllBorrows() {
+        List<AdminBorrowResponseDTO> allBorrows = borrowService.getAllBorrows();
         return ResponseEntity.ok(allBorrows);
     }
 
