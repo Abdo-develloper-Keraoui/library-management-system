@@ -103,8 +103,8 @@ Request → JwtAuthFilter → Controller → Service → Repository → PostgreS
 
 **1. Clone the repo**
 ```bash
-git clone https://github.com/yourusername/library-system.git
-cd library-system
+git clone https://github.com/Abdo-develloper-Keraoui/library-management-system
+cd library-management-system
 ```
 
 **2. Start the database**
