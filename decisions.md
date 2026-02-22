@@ -354,4 +354,4 @@ After `JwtAuthenticationFilter` validates the token and stores the user in `Secu
 
 ---
 
-_Last updated: Day 11 ✅ — Backend feature-complete. All Postman tests passed._
+_Last updated: Day 11 ✅ — Backend feature-complete. All Postman tests passed._ 
