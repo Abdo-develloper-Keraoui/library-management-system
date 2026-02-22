@@ -72,11 +72,15 @@ public class SecurityConfig {
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
                 )
 
+
                 .authorizeHttpRequests(auth -> auth
                         // Public — no token needed
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/books/**").permitAll()
                         .requestMatchers("/error").permitAll()//to allow for other 403 mappings to pass through
+                        .requestMatchers("/swagger-ui/**").permitAll()
+                        .requestMatchers("/swagger-ui.html").permitAll()
+                        .requestMatchers("/v3/api-docs/**").permitAll()
                         // Everything else requires a valid token
                         .anyRequest().authenticated()
                 )
