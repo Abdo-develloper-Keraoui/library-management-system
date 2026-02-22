@@ -87,6 +87,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+
     /**
      * BCrypt password encoder — hashes passwords with random salt.
      * Registered as a @Bean so any class can inject it via constructor.
@@ -100,4 +101,5 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
 }
